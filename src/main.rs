@@ -20,7 +20,6 @@ fn _pwm_d9() -> ! {
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain and Freeze power
-    // hprintln!("Setup PWR...                  ").unwrap();
     let pwr = dp.PWR.constrain();
     let pwrcfg = pwr.smps().freeze();
 
@@ -53,13 +52,50 @@ fn _pwm_d9() -> ! {
     }
 }
 
-#[entry]
-fn main() -> ! {
+fn pwm_stmod() -> ! {
     let cp = cortex_m::Peripherals::take().unwrap();
     let dp = pac::Peripherals::take().unwrap();
 
     // Constrain and Freeze power
-    // hprintln!("Setup PWR...                  ").unwrap();
+    let pwr = dp.PWR.constrain();
+    let pwrcfg = pwr.smps().freeze();
+
+    // Constrain and Freeze clock
+    let rcc = dp.RCC.constrain();
+    let ccdr = rcc.sys_ck(100.MHz()).freeze(pwrcfg, &dp.SYSCFG);
+
+    // Get the delay provider.
+    let mut delay = cp.SYST.delay(ccdr.clocks);
+    // Configuring pwm
+    let tim4 = dp.TIM4;
+    let gpiod = dp.GPIOD.split(ccdr.peripheral.GPIOD);
+
+    let pd14 = gpiod.pd14.into_alternate();
+
+    // Configure PWM at 10kHz
+    let mut pwm = tim4.pwm(pd14, 50.Hz(), ccdr.peripheral.TIM4, &ccdr.clocks);
+
+    // Output PWM on pd14 (on fanout board)
+    let max_duty = pwm.get_max_duty() / 2;
+    let min_duty = max_duty / 100;
+    pwm.set_duty(max_duty);
+    pwm.enable();
+    hprintln!("PWM for fanout SET").unwrap();
+    loop {
+        delay.delay_ms(1000_u16);
+        pwm.set_duty(max_duty);
+        delay.delay_ms(1000_u16);
+        pwm.set_duty(min_duty);
+    }
+}
+
+
+
+fn _blink_ld2() -> ! {
+    let cp = cortex_m::Peripherals::take().unwrap();
+    let dp = pac::Peripherals::take().unwrap();
+
+    // Constrain and Freeze power
     let pwr = dp.PWR.constrain();
     let pwrcfg = pwr.smps().freeze();
 
@@ -71,23 +107,22 @@ fn main() -> ! {
     let mut delay = cp.SYST.delay(ccdr.clocks);
 
     let gpioc = dp.GPIOC.split(ccdr.peripheral.GPIOC);
-    // let gpiob = dp.GPIOB.split(ccdr.peripheral.GPIOB);
-    // let gpioe = dp.GPIOE.split(ccdr.peripheral.GPIOE);
-
-    // let stmod = gpioe.pe9.into_pull_up_input();
-    // Configure PE1 as output.
     let mut led = gpioc.pc3.into_push_pull_output();
-    // let d1_port = gpiob.pb15.into_pull_up_input();
 
     loop {
-        // let result = d1_port.is_high();
-        // hprintln!("Result - {}", result).unwrap();
-        // let result = stmod.is_high();
-        // hprintln!("Result - {}", result).unwrap();
         led.set_high();
         delay.delay_ms(1000_u16);
 
         led.set_low();
         delay.delay_ms(1000_u16);
     }
+}
+
+#[entry]
+fn main() -> ! {
+    pwm_stmod();
+//    blink_ld2();
+ //    pwm_d9()
+
+//  loop { }
 }
